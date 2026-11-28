@@ -70,6 +70,10 @@
       if (contentTime === null && lastKnownTime > 0) contentTime = lastKnownTime;
       const v0 = document.querySelector('video');
       if (contentTime === null && v0 && v0.currentTime > 0) contentTime = Math.floor(v0.currentTime);
+      // Never save a timestamp at the very end — seeking there looks like a bug.
+      if (contentTime !== null && v0 && v0.duration && isFinite(v0.duration) && contentTime > v0.duration - 10) {
+        contentTime = 0;
+      }
     }
 
     const v = document.querySelector('video');
@@ -172,8 +176,12 @@
     const adInfo = captureAdInfo();
     LOG('Ad detected!', adInfo.advertiser, 'videoTime:', adInfo.videoTime);
 
-    const t = adInfo.videoTime;
+    let t = adInfo.videoTime;
     const vid = adInfo.videoId;
+    if (t !== null && t > 0) {
+      const v0 = document.querySelector('video');
+      if (v0 && v0.duration && isFinite(v0.duration) && t > v0.duration - 10) t = 0;
+    }
 
     if (reloadCount < MAX_RELOADS) {
       reloadCount++;
@@ -248,9 +256,14 @@
       const savedVid = sessionStorage.getItem('yt-ad-reloader-vid');
       const currentVid = new URLSearchParams(location.search).get('v');
       if (savedTime && savedVid && savedVid === currentVid) {
-        const t = parseInt(savedTime, 10);
-        LOG('Restoring playback to', t, 's');
         const v = document.querySelector('video');
+        let t = parseInt(savedTime, 10);
+        if (!isFinite(t) || t < 0) t = 0;
+        if (v && v.duration && isFinite(v.duration) && t > v.duration - 10) {
+          LOG('Saved time', t, 'is at the end — starting from 0 instead');
+          t = 0;
+        }
+        LOG('Restoring playback to', t, 's');
         if (!v) return;
         let attempts = 0;
         const seek = () => {
